@@ -9,30 +9,23 @@ import axios from "axios";
 import fetch from "node-fetch";
 import { Alchemy, Network } from "alchemy-sdk";
 import dotenv  from "dotenv"
-
 import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
-import { address, blacklists, markets } from "./config.js";
+
+import save from "./utils/save"
+import notify from "./utils/notify"
+import { address, blacklists, markets } from "./config/config.js";
 
 dotenv.config()
 
-const app = express();
-const httpServer = http.createServer(app); // server handler
-
-const delay = (ms) => new Promise((res) => setTimeout(res, ms)); // delay time
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 let limitCount = 0;
 
 const alchemy = new Alchemy({
-  // Alchemy handler
   apiKey: process.env.ALCHEMY_API_KEY_WALLET,
   network: Network.ETH_MAINNET,
 });
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] }); // discord.js handler
-
-// Initial set values
-let provider = new ethers.providers.JsonRpcProvider(
-  "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-);
+let provider = new ethers.providers.JsonRpcProvider(process.env.MAIN_URL);
 let _configuration = [
   {
     name: "global",
@@ -51,11 +44,9 @@ let _configuration = [
   },
 ];
 
-var alerts = JSON.parse(fs.readFileSync("./mint-address.json", "utf-8"));
-var marketplace = JSON.parse(
-  fs.readFileSync("./marketplace-address.json", "utf-8")
-);
-var stats = JSON.parse(fs.readFileSync("./stats.json", "utf-8"));
+var alerts = JSON.parse(fs.readFileSync("./config/mint-address.json", "utf-8"));
+var marketplace = JSON.parse(fs.readFileSync("./config/marketplace-address.json", "utf-8"));
+var stats = JSON.parse(fs.readFileSync("./config/stats.json", "utf-8"));
 
 for (const key in address) {
   if (alerts[key] == undefined) alerts[key] = {};
@@ -84,13 +75,6 @@ const setMarketplaceAddresses = () => {
  * Combind Functions
  * ***************************************************************************************************/
 
-const save = (type, obj) => {
-  let myJSON = JSON.stringify(obj);
-  fs.writeFile(`./${type}.json`, myJSON, (err) => {
-    if (err) console.log(err);
-    // console.log(`${type} Saved!`);
-  });
-};
 
 async function sdkSetup(sdk, configuration) {
   const parsedConfiguration =
@@ -104,7 +88,6 @@ async function sdkSetup(sdk, configuration) {
     ({ id }) => id !== "global"
   );
 
-  // save global configuration first and wait for it to be saved
   globalConfiguration &&
     (await sdk.configuration({
       scope: "global",
@@ -116,77 +99,6 @@ async function sdkSetup(sdk, configuration) {
     sdk.configuration({ ...abiObj, filters, scope: id, watchAddress: true });
   });
 }
-
-const notify = (msg, type, params, channelId, img) => {
-  const channel = client.channels.cache.get(channelId);
-  if (type == "alert" || img == "#")
-    channel.send({
-      content: msg,
-      tts: false,
-      embeds: [
-        {
-          type: "rich",
-          // "title": `Alert Info`,
-          // "description": `Contract Info`,
-          color: 0x00ffff,
-          fields: params,
-        },
-      ],
-    });
-  else if (type == "image")
-    channel.send({
-      content: msg,
-      tts: false,
-      embeds: [
-        {
-          type: "rich",
-          // "title": `Alert Info`,
-          // "description": `Contract Info`,
-          color: 0x00ffff,
-          fields: params,
-          thumbnail: {
-            url: img,
-          },
-        },
-      ],
-    });
-  else channel.send(msg);
-};
-
-const initCommand = () => {
-  try {
-    client.application.commands.set([
-      {
-        name: "analyze",
-        description: "Analyze Info",
-        type: 1,
-        options: [
-          {
-            name: "analyze_address",
-            type: 3,
-            description: "address",
-            required: true,
-          },
-        ],
-      },
-      {
-        name: "check",
-        description: "Check Collection address",
-        type: 1,
-        options: [
-          {
-            name: "collection-address",
-            type: 3,
-            description: "collection-address",
-            required: true,
-          },
-        ],
-      },
-    ]);
-  } catch (e) {
-    console.log("Error in initCommand: " + e);
-  }
-};
 
 const updateWalletsInfo = async () => {
   try {
@@ -1306,8 +1218,44 @@ const scanMempool = async () => {
   console.log(chalk.red(`\n[${new Date().toISOString()}] Service Start ... `));
 };
 
-// Log in to Discord with your client's token
+/////////////////////// Discord part ///////////////////////////
+const client = new Client({ intents: [GatewayIntentBits.Guilds] }); // discord.js handler
 client.login(process.env.DISCORD_TOKEN);
+
+const initCommand = () => {
+  try {
+    client.application.commands.set([
+      {
+        name: "analyze",
+        description: "Analyze Info",
+        type: 1,
+        options: [
+          {
+            name: "analyze_address",
+            type: 3,
+            description: "address",
+            required: true,
+          },
+        ],
+      },
+      {
+        name: "check",
+        description: "Check Collection address",
+        type: 1,
+        options: [
+          {
+            name: "collection-address",
+            type: 3,
+            description: "collection-address",
+            required: true,
+          },
+        ],
+      },
+    ]);
+  } catch (e) {
+    console.log("Error in initCommand: " + e);
+  }
+};
 
 client.on("ready", () => {
   console.log("Bot Ready!");
@@ -1368,8 +1316,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+///////////////////////////////////////////////////////
+
 scanMempool();
 
-const PORT = 9999;
-
-httpServer.listen(PORT, console.log(chalk.yellow(`Start Wallet Tracker...`)));
+const app = express();
+const httpServer = http.createServer(app);
+httpServer.listen(process.env.PORT, console.log(chalk.yellow(`Start Wallet Tracker...`)));

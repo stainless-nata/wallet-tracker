@@ -3,7 +3,7 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import axios from "axios";
 import fetch from "node-fetch";
 import fs from "fs";
-import data from "./config.js";
+import data from "./config/config.js";
 import { Alchemy, Network } from "alchemy-sdk";
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms)); // delay time
