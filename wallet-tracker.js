@@ -8,11 +8,12 @@ import WebSocket from "ws";
 import axios from "axios";
 import fetch from "node-fetch";
 import { Alchemy, Network } from "alchemy-sdk";
+import dotenv  from "dotenv"
 
 import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
-
-import data from "./config.js";
 import { address, blacklists, markets } from "./config.js";
+
+dotenv.config()
 
 const app = express();
 const httpServer = http.createServer(app); // server handler
@@ -22,7 +23,7 @@ let limitCount = 0;
 
 const alchemy = new Alchemy({
   // Alchemy handler
-  apiKey: data.ALCHEMY_API_KEY_WALLET,
+  apiKey: process.env.ALCHEMY_API_KEY_WALLET,
   network: Network.ETH_MAINNET,
 });
 
@@ -42,7 +43,7 @@ let _configuration = [
       },
       {
         gasUsed: {
-          gt: data.GAS_FEE,
+          gt: process.env.GAS_FEE,
         },
       },
     ],
@@ -70,7 +71,7 @@ const setMarketplaceAddresses = () => {
     "Counts for Secondary Marketplace has been set",
     "None",
     [],
-    data.NFT_MARKETPLACE_ALERT_ID,
+    process.env.NFT_MARKETPLACE_ALERT_ID,
     ""
   );
   for (const key in address) marketplace[key] = {};
@@ -408,7 +409,7 @@ const getFloorPrice = async (addr) => {
   try {
     const res = (
       await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${data.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
       )
     ).data;
     limitCount++;
@@ -425,7 +426,7 @@ const getContractInfo = async (addr) => {
   try {
     const res = (
       await axios.get(
-        `https://eth-mainnet.g.alchemy.com/v2/${data.ALCHEMY_API_KEY_WALLET}/getContractMetadata?contractAddress=${addr}&refreshCache=true`
+        `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getContractMetadata?contractAddress=${addr}&refreshCache=true`
       )
     ).data.contractMetadata;
     limitCount++;
@@ -480,7 +481,7 @@ const getTokenInfo = async (addr, hash) => {
 
     let options = {
       method: "POST",
-      url: `https://eth-mainnet.g.alchemy.com/v2/${data.ALCHEMY_API_KEY_WALLET}`,
+      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_WALLET}`,
       headers: {
         accept: "application/json",
         "content-type": "application/json",
@@ -514,7 +515,7 @@ const getTokenInfo = async (addr, hash) => {
 
     options = {
       method: "POST",
-      url: `https://eth-mainnet.g.alchemy.com/v2/${data.ALCHEMY_API_KEY_WALLET}`,
+      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_WALLET}`,
       headers: {
         accept: "application/json",
         "content-type": "application/json",
@@ -558,7 +559,7 @@ const getStatInfo = async (addr) => {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        Authorization: "Bearer " + data.INTELLIGENCE_API_KEY,
+        Authorization: "Bearer " + process.env.INTELLIGENCE_API_KEY,
       },
     });
     const res = await result.json();
@@ -587,7 +588,7 @@ const getMultipleStatInfo = async (addr) => {
               headers: {
                 Accept: "application/json",
                 "Content-Type": "application/json",
-                Authorization: "Bearer " + data.INTELLIGENCE_API_KEY,
+                Authorization: "Bearer " + process.env.INTELLIGENCE_API_KEY,
               },
             }) // Send request for each id
           );
@@ -610,7 +611,7 @@ const getCollectWalletInfo = async (addr) => {
   try {
     const res = (
       await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${data.ALCHEMY_API_KEY_WALLET}/getOwnersForCollection?contractAddress=${addr}`
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getOwnersForCollection?contractAddress=${addr}`
       )
     ).data.ownerAddresses;
     limitCount++;
@@ -640,7 +641,7 @@ const getCollectionUrl = async (addr) => {
   try {
     const res = (
       await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${data.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
       )
     ).data;
     limitCount++;
@@ -943,7 +944,7 @@ async function handleTransactionEvent(transaction) {
         msg,
         firstAlert ? "image" : "alert",
         params,
-        data.NFT_MARKETPLACE_ALERT_ID,
+        process.env.NFT_MARKETPLACE_ALERT_ID,
         info.imageUrl
       );
 
@@ -1052,7 +1053,7 @@ async function handleTransactionEvent(transaction) {
         msg,
         firstAlert ? "image" : "alert",
         params,
-        data.NFT_MINTING_ALERT_ID,
+        process.env.NFT_MINTING_ALERT_ID,
         info.imageUrl
       );
 
@@ -1214,7 +1215,7 @@ async function handleTransactionEvent(transaction) {
       msg,
       firstAlert ? "image" : "alert",
       params,
-      isMarket ? data.ALL_MARKETPLACE_ALERT_ID : data.ALL_MINT_ALERT_ID,
+      isMarket ? process.env.ALL_MARKETPLACE_ALERT_ID : process.env.ALL_MINT_ALERT_ID,
       info.imageUrl
     );
 
@@ -1223,25 +1224,11 @@ async function handleTransactionEvent(transaction) {
       firstAlert ? "image" : "alert",
       params,
       isMarket
-        ? data.ALL_MARKETPLACE_ALERT_ID_BETA
-        : data.ALL_MINT_ALERT_ID_BETA,
+        ? process.env.ALL_MARKETPLACE_ALERT_ID_BETA
+        : process.env.ALL_MINT_ALERT_ID_BETA,
       info.imageUrl
     );
 
-    /*     if (c >= 5)
-      setTimeout(
-        () =>
-          notify(
-            msg,
-            firstAlert ? "image" : "alert",
-            params,
-            isMarket
-              ? data.ALL_MARKETPLACE_ALERT_ID_DELTA
-              : data.ALL_MINT_ALERT_ID_DELTA,
-            info.imageUrl
-          ),
-        1000 * 60 * 3 // 3 minutes delay
-      ); */
     console.log(msg, params);
   }
   save("mint-address", alerts);
@@ -1280,7 +1267,7 @@ const scanMempool = async () => {
     let id = 0;
     for (let i = 0; i < len; i = i + buffer) {
       const blocknative = new BlocknativeSDK({
-        dappId: data.BLOCK_KEY,
+        dappId: process.env.BLOCK_KEY,
         networkId: 1,
         transactionHandlers: [handleTransactionEvent],
         ws: WebSocket,
@@ -1313,14 +1300,14 @@ const scanMempool = async () => {
   }
   console.log(`[${new Date().toISOString()}] Error count: ${count}`);
 
-  notify("Wallet Tracker started!", "None", [], data.NFT_MINTING_ALERT_ID, "");
+  notify("Wallet Tracker started!", "None", [], process.env.NFT_MINTING_ALERT_ID, "");
   setTimeout(() => setMarketplaceAddresses(), 1000 * 60 * 60 * 48);
 
   console.log(chalk.red(`\n[${new Date().toISOString()}] Service Start ... `));
 };
 
 // Log in to Discord with your client's token
-client.login(data.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN);
 
 client.on("ready", () => {
   console.log("Bot Ready!");
