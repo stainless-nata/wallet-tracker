@@ -13,12 +13,13 @@ import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
 
 import save from "./utils/save"
 import notify from "./utils/notify"
+import { getFloorPrice } from "./utils/api"
 import { address, blacklists, markets } from "./config/config.js";
 
 dotenv.config()
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-let limitCount = 0;
+global.limitCount = 0;
 
 const alchemy = new Alchemy({
   apiKey: process.env.ALCHEMY_API_KEY_WALLET,
@@ -59,6 +60,7 @@ for (const key in address) {
 
 const setMarketplaceAddresses = () => {
   notify(
+    client,
     "Counts for Secondary Marketplace has been set",
     "None",
     [],
@@ -185,8 +187,8 @@ const alertCollection = async (address, type) => {
 
     // Get owners
     const owners = (await alchemy.nft.getOwnersForContract(address)).owners;
-    limitCount++;
-    console.log(limitCount);
+    global.limitCount++;
+    console.log(global.limitCount);
     let wallets = [];
 
     if (type == "full") {
@@ -317,23 +319,6 @@ const alertCollection = async (address, type) => {
  * API calls
  * ***************************************************************************************************/
 
-const getFloorPrice = async (addr) => {
-  try {
-    const res = (
-      await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
-      )
-    ).data;
-    limitCount++;
-    console.log(limitCount);
-
-    // console.log(res.openSea?.floorPrice);
-    return res.openSea?.floorPrice;
-  } catch (e) {
-    console.log("Error in getFloorPrice" + e);
-  }
-};
-
 const getContractInfo = async (addr) => {
   try {
     const res = (
@@ -341,8 +326,8 @@ const getContractInfo = async (addr) => {
         `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getContractMetadata?contractAddress=${addr}&refreshCache=true`
       )
     ).data.contractMetadata;
-    limitCount++;
-    console.log(limitCount);
+    global.limitCount++;
+    console.log(global.limitCount);
 
     return {
       contractName: (res.name == undefined
@@ -418,8 +403,8 @@ const getTokenInfo = async (addr, hash) => {
     };
 
     let res = (await axios.request(options)).data.result.transfers;
-    limitCount++;
-    console.log(`[${new Date().toISOString()}] Limit count: ${limitCount}`);
+    global.limitCount++;
+    console.log(`[${new Date().toISOString()}] Limit count: ${global.limitCount}`);
 
     for (const key in res) {
       if (res[key].hash == hash) return res[key].rawContract.address;
@@ -451,8 +436,8 @@ const getTokenInfo = async (addr, hash) => {
       },
     };
     res = (await axios.request(options)).data.result.transfers;
-    limitCount++;
-    console.log(`[${new Date().toISOString()}] Limit count: ${limitCount}`);
+    global.limitCount++;
+    console.log(`[${new Date().toISOString()}] Limit count: ${global.limitCount}`);
 
     for (const key in res) {
       if (res[key].hash == hash) return res[key].rawContract.address;
@@ -526,8 +511,8 @@ const getCollectWalletInfo = async (addr) => {
         `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getOwnersForCollection?contractAddress=${addr}`
       )
     ).data.ownerAddresses;
-    limitCount++;
-    console.log(limitCount);
+    global.limitCount++;
+    console.log(global.limitCount);
 
     return res;
   } catch (e) {
@@ -556,8 +541,8 @@ const getCollectionUrl = async (addr) => {
         `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
       )
     ).data;
-    limitCount++;
-    console.log("Limit count:", limitCount);
+    global.limitCount++;
+    console.log("Limit count:", global.limitCount);
 
     // console.log(res.openSea?.floorPrice);
     return res.openSea?.collectionUrl;
@@ -571,58 +556,6 @@ const getCollectionUrl = async (addr) => {
   }
 };
 
-/*****************************************************************************************************
- * Check Functions
- * ***************************************************************************************************/
-
-const checkMethodId = (input) => {
-  const methodid = input.slice(0, 10).toLowerCase();
-  // console.log(methodid);
-  if (methodid == "0xa22cb465") {
-    console.log("setApprovalForAll: " + methodid);
-    return false;
-  }
-  if (methodid == "0x423f6cef") {
-    console.log("safeTransfer: " + methodid);
-    return false;
-  }
-  if (methodid == "0x42842e0e" || methodid == "0xb88d4fde") {
-    console.log("safeTransferFrom: " + methodid);
-    return false;
-  }
-  if (methodid == "0x23b872dd") {
-    console.log("transferFrom: " + methodid);
-    return false;
-  }
-  return true;
-};
-
-const isBlackList = (addr) => {
-  for (const key in blacklists)
-    if (blacklists[key].toLowerCase() == addr.toLowerCase()) return true;
-  return false;
-};
-
-const isMarkets = (addr) => {
-  for (const key in markets)
-    if (markets[key].toLowerCase() == addr.toLowerCase()) return true;
-  return false;
-};
-
-const inOurList = (owners) => {
-  let wallets = [],
-    res = [];
-  for (const i in address) {
-    for (const j in address[i]) {
-      wallets.push(address[i][j]);
-    }
-  }
-
-  for (const key in owners) {
-    if (wallets.includes(owners[key].toLowerCase())) res.push(owners[key]);
-  }
-  return res;
-};
 
 /*****************************************************************************************************
  * Handler
@@ -754,8 +687,8 @@ async function handleTransactionEvent(transaction) {
       const owners = await alchemy.nft.getOwnersForContract(tokenAddress);
 
       // Increment limit count and log current value
-      limitCount++;
-      console.log(`[${new Date().toISOString()}] Limit count: ${limitCount}`);
+      global.limitCount++;
+      console.log(`[${new Date().toISOString()}] Limit count: ${global.limitCount}`);
       let wallets = owners.owners.length;
       let links = [`[Etherscan](https://etherscan.io/address/${tokenAddress})`];
 
@@ -853,6 +786,7 @@ async function handleTransactionEvent(transaction) {
 
       msg = `${alertType}: ${addr.length} wallets from ${addressSymbol} bought [${tokenAddress}] on a secondary marketplace`;
       notify(
+        client,
         msg,
         firstAlert ? "image" : "alert",
         params,
@@ -885,8 +819,8 @@ async function handleTransactionEvent(transaction) {
       const collectionUrl = await getCollectionUrl(toAddress);
       // Get owners
       const owners = await alchemy.nft.getOwnersForContract(toAddress);
-      limitCount++;
-      console.log(limitCount);
+      global.limitCount++;
+      console.log(global.limitCount);
       let wallets = owners.owners.length;
       let links = [`[Etherscan](https://etherscan.io/address/${toAddress})`];
 
@@ -962,6 +896,7 @@ async function handleTransactionEvent(transaction) {
 
       msg = `${alertType}: ${addr.length} wallets from ${addressSymbol} interacted with ${toAddress}`;
       notify(
+        client,
         msg,
         firstAlert ? "image" : "alert",
         params,
@@ -1034,8 +969,8 @@ async function handleTransactionEvent(transaction) {
 
     // Get owners
     const owners = await alchemy.nft.getOwnersForContract(contractAddress);
-    limitCount++;
-    console.log(`[${new Date().toISOString()}] Limit count: ${limitCount}`);
+    global.limitCount++;
+    console.log(`[${new Date().toISOString()}] Limit count: ${global.limitCount}`);
     let wallets = owners.owners.length;
 
     let links = [
@@ -1124,6 +1059,7 @@ async function handleTransactionEvent(transaction) {
       ? `${alertType}: ${c} wallets bought [${contractAddress}]`
       : `${alertType}: ${c} wallets minted [${contractAddress}]`;
     notify(
+      client,
       msg,
       firstAlert ? "image" : "alert",
       params,
@@ -1132,6 +1068,7 @@ async function handleTransactionEvent(transaction) {
     );
 
     notify(
+      client,
       msg,
       firstAlert ? "image" : "alert",
       params,
@@ -1212,7 +1149,7 @@ const scanMempool = async () => {
   }
   console.log(`[${new Date().toISOString()}] Error count: ${count}`);
 
-  notify("Wallet Tracker started!", "None", [], process.env.NFT_MINTING_ALERT_ID, "");
+  notify(client, "Wallet Tracker started!", "None", [], process.env.NFT_MINTING_ALERT_ID, "");
   setTimeout(() => setMarketplaceAddresses(), 1000 * 60 * 60 * 48);
 
   console.log(chalk.red(`\n[${new Date().toISOString()}] Service Start ... `));
