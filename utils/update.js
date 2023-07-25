@@ -1,6 +1,6 @@
-import { getMultipleStatInfo, getCollectWalletInfo, getContractInfo, getFloorPrice, getCollectionUrl } from "./api";
-import save from '../utils/save.js'
-import { inOurList } from '../utils/check.js'
+import { getMultipleStatInfo, getCollectWalletInfo, getContractInfo, getFloorPrice, getCollectionUrl } from "./api.js";
+import save from './save.js'
+import { inOurList } from './check.js'
 import { Alchemy, Network } from "alchemy-sdk";
 import dotenv  from "dotenv"
 dotenv.config()
