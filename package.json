@@ -1,12 +1,12 @@
 {
-  "name": "wallet_tracker",
+  "name": "wallet-tracker",
   "version": "1.0.0",
   "description": "",
-  "main": "wallet_tracker.js",
+  "main": "wallet-tracker.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "wallet_tracker": "node wallet_tracker.js"
+    "wallet": "node wallet-tracker.js"
   },
   "author": "",
   "license": "ISC",
