@@ -9,7 +9,7 @@ dotenv.config()
 
 export const updateWalletsInfo = async (address) => {
     try {
-        var stats = JSON.parse(fs.readFileSync("../config/stats.json", "utf-8"));
+        var stats = JSON.parse(fs.readFileSync("./config/stats.json", "utf-8"));
         let count = 0;
 
         for (const i in address) {
@@ -46,7 +46,7 @@ export const updateWalletsInfo = async (address) => {
   
 export const updateStats = async (addr) => {
     try {
-        var stats = JSON.parse(fs.readFileSync("../config/stats.json", "utf-8"));
+        var stats = JSON.parse(fs.readFileSync("./config/stats.json", "utf-8"));
 
         const wallets = await getCollectWalletInfo(addr);
         const responses = await getMultipleStatInfo(wallets, stats);
@@ -103,7 +103,7 @@ export const alertCollection = async (address, type) => {
             apiKey: process.env.ALCHEMY_API_KEY_WALLET,
             network: Network.ETH_MAINNET,
         });
-        var stats = JSON.parse(fs.readFileSync("../config/stats.json", "utf-8"));
+        var stats = JSON.parse(fs.readFileSync("./config/stats.json", "utf-8"));
 
         const info = await getContractInfo(address);
         const addr = await updateStats(address);
