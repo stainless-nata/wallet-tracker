@@ -9,11 +9,11 @@ import { Alchemy, Network } from "alchemy-sdk";
 import dotenv  from "dotenv"
 import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
 
-import save from "./utils/save"
-import notify from "./utils/notify"
-import { getFloorPrice, getContractInfo, getTokenInfo, getCollectionUrl } from "./utils/api"
-import { checkMethodId, isBlackList, isMarkets, inOurList } from './utils/check'
-import { roles } from './utils/constants'
+import save from "./utils/save.js"
+import notify from "./utils/notify.js"
+import { getFloorPrice, getContractInfo, getTokenInfo, getCollectionUrl } from "./utils/api.js"
+import { checkMethodId, isBlackList, isMarkets, inOurList } from './utils/check.js'
+import { roles } from './utils/constants.js'
 
 import { address, blacklists, markets } from "./config/config.js";
 
