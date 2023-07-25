@@ -14,6 +14,7 @@ import notify from "./utils/notify.js"
 import { getFloorPrice, getContractInfo, getTokenInfo, getCollectionUrl } from "./utils/api.js"
 import { checkMethodId, isBlackList, isMarkets, inOurList } from './utils/check.js'
 import { roles } from './utils/constants.js'
+import { updateWalletsInfo, getAlertCountFromContract, alertCollection } from './utils/update.js'
 
 import { address, blacklists, markets } from "./config/config.js";
 
