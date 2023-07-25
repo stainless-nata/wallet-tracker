@@ -1,3 +1,8 @@
+import axios from "axios";
+import fetch from "node-fetch";
+import dotenv  from "dotenv"
+dotenv.config()
+
 export const getFloorPrice = async (addr) => {
     try {
       const res = (
@@ -142,5 +147,81 @@ export const getTokenInfo = async (addr, hash) => {
     return null;
   } catch (e) {
     console.error(`[${new Date().toISOString()}] Error in getTokenInfo: `, e);
+  }
+};
+
+export const getCollectWalletInfo = async (addr) => {
+  try {
+    const res = (
+      await axios.get(
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getOwnersForCollection?contractAddress=${addr}`
+      )
+    ).data.ownerAddresses;
+    global.limitCount++;
+    console.log(global.limitCount);
+
+    return res;
+  } catch (e) {
+    console.log("Error in getCollectWalletInfo" + e);
+  }
+};
+
+export const getCollectionUrl = async (addr) => {
+  try {
+    const res = (
+      await axios.get(
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
+      )
+    ).data;
+    global.limitCount++;
+    console.log("Limit count:", global.limitCount);
+
+    // console.log(res.openSea?.floorPrice);
+    return res.openSea?.collectionUrl;
+  } catch (e) {
+    console.error(
+      "Error in getCollectionUrl for contract address:",
+      addr,
+      "Error:",
+      e
+    );
+  }
+};
+
+export const getMultipleStatInfo = async (addr, stats) => {
+  try {
+    let res = [];
+    let array = [];
+
+    for (let i = 0; i < addr.length; i += 500) {
+      array.push(addr.slice(i, i + 500));
+    }
+
+    for (const i in array) {
+      let temp = [];
+      for (const j in array[i]) {
+        if (stats[array[i][j]] == undefined)
+          temp.push(
+            fetch(`https://rutherford.5.dev/api/scores/${array[i][j]}`, {
+              // Authorization using Bearer token while Fetch
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + process.env.INTELLIGENCE_API_KEY,
+              },
+            }) // Send request for each id
+          );
+      }
+      let response = await Promise.all(temp);
+      res = res.concat(response);
+    }
+
+    for (const key in res) {
+      res[key] = await res[key].json();
+    }
+
+    return res;
+  } catch (e) {
+    console.log("Error in getMultipleStatInfo: " + e);
   }
 };

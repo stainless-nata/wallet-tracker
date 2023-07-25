@@ -5,16 +5,15 @@ import fs from "fs";
 import chalk from "chalk";
 import BlocknativeSDK from "bnc-sdk";
 import WebSocket from "ws";
-import axios from "axios";
-import fetch from "node-fetch";
 import { Alchemy, Network } from "alchemy-sdk";
 import dotenv  from "dotenv"
 import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
 
 import save from "./utils/save"
 import notify from "./utils/notify"
-import { getFloorPrice, getContractInfo, getTokenInfo } from "./utils/api"
+import { getFloorPrice, getContractInfo, getTokenInfo, getCollectionUrl } from "./utils/api"
 import { checkMethodId, isBlackList, isMarkets, inOurList } from './utils/check'
+import { roles } from './utils/constants'
 
 import { address, blacklists, markets } from "./config/config.js";
 
@@ -56,378 +55,14 @@ for (const key in address) {
   if (marketplace[key] == undefined) marketplace[key] = {};
 }
 
-/*****************************
- * Cycling functions
- ******************************/
-
 const setMarketplaceAddresses = () => {
-  notify(
-    client,
-    "Counts for Secondary Marketplace has been set",
-    "None",
-    [],
-    process.env.NFT_MARKETPLACE_ALERT_ID,
-    ""
-  );
-  for (const key in address) marketplace[key] = {};
+  notify(client, "Counts for Secondary Marketplace has been set", "None", [], process.env.NFT_MARKETPLACE_ALERT_ID, "");
 
+  for (const key in address) marketplace[key] = {};
   save("marketplace-address", marketplace);
+
   setTimeout(() => setMarketplaceAddresses(), 1000 * 60 * 60 * 48); // sync every 48 hours, 1000 = 1 sec
 };
-
-/*****************************************************************************************************
- * Combind Functions
- * ***************************************************************************************************/
-
-
-async function sdkSetup(sdk, configuration) {
-  const parsedConfiguration =
-    typeof configuration === "string"
-      ? JSON.parse(configuration)
-      : configuration;
-  const globalConfiguration = parsedConfiguration.find(
-    ({ id }) => id === "global"
-  );
-  const addressConfigurations = parsedConfiguration.filter(
-    ({ id }) => id !== "global"
-  );
-
-  globalConfiguration &&
-    (await sdk.configuration({
-      scope: "global",
-      filters: globalConfiguration.filters,
-    }));
-
-  addressConfigurations.forEach(({ id, filters, abi }) => {
-    const abiObj = abi ? { abi } : {};
-    sdk.configuration({ ...abiObj, filters, scope: id, watchAddress: true });
-  });
-}
-
-const updateWalletsInfo = async () => {
-  try {
-    let count = 0;
-
-    for (const i in address) {
-      const responses = await getMultipleStatInfo(address[i]);
-
-      for (const key in responses) {
-        const res = responses[key];
-        const wallet = res.address;
-        if (stats[wallet]) continue;
-        console.log(`${wallet} wallet info is added`);
-        count = count + 1;
-        let obj = {};
-        obj.isWhale = res.scores?.whaleness;
-        obj.isDiamond = false;
-        res.labels?.map(
-          (key) =>
-            (obj.isDiamond =
-              key.name == "diamond" || key.name == "five-diamond"
-                ? true
-                : obj.isDiamond)
-        );
-        obj.hands = res.scores?.hands;
-        obj.labels = res.labels;
-
-        stats[wallet] = obj;
-      }
-    }
-    save("stats", stats);
-    console.log(`Stats updated - ${count} wallets are added`);
-  } catch (e) {
-    console.log("Error in updateWalletInfo: " + e);
-  }
-};
-
-const updateStats = async (addr) => {
-  try {
-    const wallets = await getCollectWalletInfo(addr);
-    const responses = await getMultipleStatInfo(wallets);
-
-    let count = 0;
-
-    for (const key in responses) {
-      const res = responses[key];
-      const wallet = res.address;
-      if (stats[wallet]) continue;
-      console.log(`${wallet} wallet info is added`);
-      count = count + 1;
-      let obj = {};
-      obj.isWhale = res.scores?.whaleness;
-      obj.isDiamond = false;
-      res.labels?.map(
-        (key) =>
-          (obj.isDiamond =
-            key.name == "diamond" || key.name == "five-diamond"
-              ? true
-              : obj.isDiamond)
-      );
-      obj.hands = res.scores?.hands;
-      obj.labels = res.labels;
-
-      stats[wallet] = obj;
-    }
-    save("stats", stats);
-    console.log(`Stats updated - ${count} wallets are added`);
-    return wallets;
-  } catch (e) {
-    console.log("Error in updateStats: " + e);
-  }
-};
-
-const alertCollection = async (address, type) => {
-  try {
-    const info = await getContractInfo(address);
-    const addr = await updateStats(address);
-
-    // FloorPrice
-    let floorPrice = await getFloorPrice(address);
-
-    // TotalSupply
-    const tokens = (await getContractInfo(address))?.totalSupply;
-
-    // Get owners
-    const owners = (await alchemy.nft.getOwnersForContract(address)).owners;
-    global.limitCount++;
-    console.log(global.limitCount);
-    let wallets = [];
-
-    if (type == "full") {
-      wallets = owners;
-    } else if (type == "list") {
-      wallets = inOurList(owners, address);
-      console.log(wallets);
-    }
-    // console.log(wallets);
-
-    let params = [];
-
-    // if (info) {
-    if (info.contractName != "#")
-      params.push({
-        name: `Contract Name`,
-        value: info.contractName == "" ? "#" : info.contractName,
-        inline: true,
-      });
-    if (info.description != "#" && alerts[address] == undefined) {
-      params.push({
-        name: `Description`,
-        value: info.description == "" ? "#" : info.description,
-        inline: false,
-      });
-      alerts[address] = "#Notified";
-    }
-    const collectionUrl = await getCollectionUrl(address);
-    let links = [`[Etherscan](https://etherscan.io/address/${address})`];
-
-    if (wallets > 0) {
-      links.push(`[CatchMint](https://catchmint.xyz/?address=${address})`);
-      // links.push(`[IcyTools](https://icy.tools/collections/${address})`);
-      links.push(`[Blur](https://beta.blur.io/collection/${address})`);
-      // links.push(`[X2Y2](https://x2y2.io/collection/${address})`);
-      links.push(`[OS](https://pro.opensea.io/collection/${address})`);
-      // links.push(`[TinyAstro](https://tinyastro.io/analytics/${address})`);
-      // links.push(`[Magically](https://magically.gg/collection/${address})`);
-      links.push(`[NFTFlip](https://nftflip.ai/collection/${address})`);
-      // links.push(`[NFTNerds](https://app.nftnerds.ai/collection/${address})`);
-    }
-
-    if (info.twitterUsername != "#") {
-      links.push(`[Twitter](https://twitter.com/${info.twitterUsername})`);
-    }
-
-    params.push({
-      name: `Links`,
-      value: links.join(" ・ "),
-      inline: false,
-    });
-    // Add Stats
-    let diamond = 0,
-      platinum = 0,
-      flipper = 0,
-      whales = 0,
-      blue_chip = 0,
-      smart_trader = 0,
-      smart_minter = 0,
-      top_trader = 0;
-    for (const key in wallets) {
-      if (!stats[wallets[key]]) continue;
-      const labels = stats[wallets[key]].labels;
-      for (const i in labels) {
-        if (labels[i].name == "diamond") diamond++;
-        if (labels[i].name == "five-diamond") platinum++;
-        if (labels[i].name == "paperhand") flipper++;
-        if (labels[i].name == "whale") whales++;
-        if (labels[i].name == "blue-chip") blue_chip++;
-        if (labels[i].name == "smart-money") smart_trader++;
-        if (labels[i].name == "top-minter") smart_minter++;
-        if (labels[i].name == "top-trader") top_trader++;
-      }
-    }
-    console.log("Token Address: ", address); // Log the token address
-
-    const contractInfo = await getContractInfo(address);
-
-    console.log("Contract Info: ", contractInfo); // Log the returned contract info
-
-    tokens = contractInfo.totalSupply;
-
-    console.log("Total Supply (tokens): ", tokens); // Log the total supply
-
-    let valueLines = [];
-    if (tokens !== "#") {
-      console.log("Inside the conditional block with tokens: ", tokens); // Log inside the condition
-      valueLines.push(`🍬  ${tokens} Tokens Minted`);
-    }
-    if (wallets > 0) {
-      valueLines.push(`👛  ${wallets} Wallets`);
-    }
-    if (floorPrice !== undefined) {
-      valueLines.push(`💰  ${floorPrice} Floor`);
-    }
-    if (
-      info.tokenType !== "#" &&
-      info.tokenType !== "NO_SUPPORTED_NFT_STANDARD"
-    ) {
-      valueLines.push(`📜  ${info.tokenType}`);
-    }
-    if (valueLines.length > 0) {
-      // Ensure there's at least one line to display
-      params.push({
-        name: `Contract Stats`,
-        value: valueLines.join("\n"),
-        inline: true,
-      });
-    }
-    params.push({
-      name: `Alerted Wallet Info`,
-      value: `💎  ${diamond} Diamond Hand\n✨  ${platinum} Platinum Hand\n♻  ${flipper} Flipper\n🐋  ${whales} Whale`,
-      inline: true,
-    });
-    params.push({
-      name: `Alerted Wallet Info`,
-      value: `🔹  ${blue_chip} Blue Chip\n🧠  ${smart_trader} Smart Trader\n🍃  ${smart_minter} Top Minter\n📈  ${top_trader} Top Trader`,
-      inline: true,
-    });
-
-    return params;
-  } catch (e) {
-    console.log("Error in alertCollection: " + e);
-  }
-};
-
-/*****************************************************************************************************
- * API calls
- * ***************************************************************************************************/
-
-const getStatInfo = async (addr) => {
-  try {
-    const result = await fetch(`https://rutherford.5.dev/api/scores/${addr}`, {
-      // Authorization using Bearer token while Fetch
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + process.env.INTELLIGENCE_API_KEY,
-      },
-    });
-    const res = await result.json();
-    return res;
-  } catch (e) {
-    console.log("Error in getStatInfo" + e);
-  }
-};
-
-const getMultipleStatInfo = async (addr) => {
-  try {
-    let res = [];
-    let array = [];
-
-    for (let i = 0; i < addr.length; i += 500) {
-      array.push(addr.slice(i, i + 500));
-    }
-
-    for (const i in array) {
-      let temp = [];
-      for (const j in array[i]) {
-        if (stats[array[i][j]] == undefined)
-          temp.push(
-            fetch(`https://rutherford.5.dev/api/scores/${array[i][j]}`, {
-              // Authorization using Bearer token while Fetch
-              headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + process.env.INTELLIGENCE_API_KEY,
-              },
-            }) // Send request for each id
-          );
-      }
-      let response = await Promise.all(temp);
-      res = res.concat(response);
-    }
-
-    for (const key in res) {
-      res[key] = await res[key].json();
-    }
-
-    return res;
-  } catch (e) {
-    console.log("Error in getMultipleStatInfo: " + e);
-  }
-};
-
-const getCollectWalletInfo = async (addr) => {
-  try {
-    const res = (
-      await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getOwnersForCollection?contractAddress=${addr}`
-      )
-    ).data.ownerAddresses;
-    global.limitCount++;
-    console.log(global.limitCount);
-
-    return res;
-  } catch (e) {
-    console.log("Error in getCollectWalletInfo" + e);
-  }
-};
-
-const getAlertCountFromContract = (contractAddress, addr) => {
-  try {
-    let count = 0;
-
-    for (const key in addr) {
-      if (addr[key][contractAddress] == undefined) continue;
-      count = count + addr[key][contractAddress].length;
-    }
-    return count;
-  } catch (e) {
-    console.log("Error in getAlertCountFromContract" + e);
-  }
-};
-
-const getCollectionUrl = async (addr) => {
-  try {
-    const res = (
-      await axios.get(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_API_KEY_WALLET}/getFloorPrice?contractAddress=${addr}&refreshCache=true`
-      )
-    ).data;
-    global.limitCount++;
-    console.log("Limit count:", global.limitCount);
-
-    // console.log(res.openSea?.floorPrice);
-    return res.openSea?.collectionUrl;
-  } catch (e) {
-    console.error(
-      "Error in getCollectionUrl for contract address:",
-      addr,
-      "Error:",
-      e
-    );
-  }
-};
-
 
 /*****************************************************************************************************
  * Handler
@@ -496,23 +131,7 @@ async function handleTransactionEvent(transaction) {
   if (addr.length == 10) alertType = "<@&1025482908141637702>";
   if (addr.length == 25) alertType = "<@&1025482870174793738>";
 
-  let addressSymbol;
-  if (addressType == "UND") addressSymbol = "<@&1025484789819641967>";
-  if (addressType == "ROI") addressSymbol = "<@&1025484818949091501>";
-  if (addressType == "Buttr") addressSymbol = "<@&1025484846484697140>";
-  if (addressType == "MOMENTUM") addressSymbol = "<@&1031572962303819826>";
-  if (addressType == "Weller") addressSymbol = "<@&1031950215328043048>";
-  if (addressType == "Influencers") addressSymbol = "<@&1032806618334756945>";
-  if (addressType == "Admitone") addressSymbol = "<@&1035229679042441286>";
-  if (addressType == "NftFlip") addressSymbol = "<@&1060708004284071947>";
-  if (addressType == "OCB") addressSymbol = "<@&1049549301828829235>";
-  if (addressType == "MVHQ") addressSymbol = "<@&1046206749880877096>";
-  if (addressType == "Proof") addressSymbol = "<@&1045942747200245842>";
-  if (addressType == "Japan") addressSymbol = "<@&1038687252970225724>";
-  if (addressType == "FlurGold") addressSymbol = "<@&1039203766928424992>";
-  if (addressType == "Cryptoninja") addressSymbol = "<@&1038689817787109376>";
-  if (addressType == "Wumbo") addressSymbol = "<@&1038629683484426241>";
-  if (addressType == "ClubMomo") addressSymbol = "<@&1025481108625838191>";
+  let addressSymbol = roles[addressType];
 
   // Normal Alert
   if (alertType !== "None") {
@@ -971,63 +590,8 @@ const invokeConfiguration = (addr) => {
   return temp;
 };
 
-/*****************************************************************************************************
- * Find the new liquidity Pair with specific token while scanning the mempool in real-time.
- * ***************************************************************************************************/
-const scanMempool = async () => {
-  console.info(`[${new Date().toISOString()}] Starting mempool scan`);
+/////////////////////// Discord ///////////////////////////
 
-  await updateWalletsInfo();
-
-  let count = 0;
-
-  const buffer = 45;
-
-  for (const key in address) {
-    let len = address[key].length;
-    let id = 0;
-    for (let i = 0; i < len; i = i + buffer) {
-      const blocknative = new BlocknativeSDK({
-        dappId: process.env.BLOCK_KEY,
-        networkId: 1,
-        transactionHandlers: [handleTransactionEvent],
-        ws: WebSocket,
-        name: key + id,
-        onopen: () => {
-          console.log(
-            `[${new Date().toISOString()}] Connected to Blocknative with name ${
-              key + id
-            }`
-          );
-        },
-        onerror: (error) => {
-          count++;
-          console.error(
-            `[${new Date().toISOString()}] Error on Blocknative with name ${
-              key + id
-            } | Error:`,
-            error
-          );
-        },
-      });
-      id++;
-
-      let filter = invokeConfiguration(
-        address[key].slice(i, i + buffer > len ? len : i + buffer)
-      );
-      await sdkSetup(blocknative, filter);
-      await delay(1000);
-    }
-  }
-  console.log(`[${new Date().toISOString()}] Error count: ${count}`);
-
-  notify(client, "Wallet Tracker started!", "None", [], process.env.NFT_MINTING_ALERT_ID, "");
-  setTimeout(() => setMarketplaceAddresses(), 1000 * 60 * 60 * 48);
-
-  console.log(chalk.red(`\n[${new Date().toISOString()}] Service Start ... `));
-};
-
-/////////////////////// Discord part ///////////////////////////
 const client = new Client({ intents: [GatewayIntentBits.Guilds] }); // discord.js handler
 client.login(process.env.DISCORD_TOKEN);
 
@@ -1127,7 +691,88 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 ///////////////////////////////////////////////////////
 
+/////////////////////// Blocknative SDK ///////////////////////////
+
+async function sdkSetup(sdk, configuration) {
+  const parsedConfiguration =
+    typeof configuration === "string"
+      ? JSON.parse(configuration)
+      : configuration;
+  const globalConfiguration = parsedConfiguration.find(
+    ({ id }) => id === "global"
+  );
+  const addressConfigurations = parsedConfiguration.filter(
+    ({ id }) => id !== "global"
+  );
+
+  globalConfiguration &&
+    (await sdk.configuration({
+      scope: "global",
+      filters: globalConfiguration.filters,
+    }));
+
+  addressConfigurations.forEach(({ id, filters, abi }) => {
+    const abiObj = abi ? { abi } : {};
+    sdk.configuration({ ...abiObj, filters, scope: id, watchAddress: true });
+  });
+}
+
+const scanMempool = async () => {
+  console.info(`[${new Date().toISOString()}] Starting mempool scan`);
+
+  await updateWalletsInfo(address);
+
+  let count = 0;
+
+  const buffer = 45;
+
+  for (const key in address) {
+    let len = address[key].length;
+    let id = 0;
+    for (let i = 0; i < len; i = i + buffer) {
+      const blocknative = new BlocknativeSDK({
+        dappId: process.env.BLOCK_KEY,
+        networkId: 1,
+        transactionHandlers: [handleTransactionEvent],
+        ws: WebSocket,
+        name: key + id,
+        onopen: () => {
+          console.log(
+            `[${new Date().toISOString()}] Connected to Blocknative with name ${
+              key + id
+            }`
+          );
+        },
+        onerror: (error) => {
+          count++;
+          console.error(
+            `[${new Date().toISOString()}] Error on Blocknative with name ${
+              key + id
+            } | Error:`,
+            error
+          );
+        },
+      });
+      id++;
+
+      let filter = invokeConfiguration(
+        address[key].slice(i, i + buffer > len ? len : i + buffer)
+      );
+      await sdkSetup(blocknative, filter);
+      await delay(1000);
+    }
+  }
+  console.log(`[${new Date().toISOString()}] Error count: ${count}`);
+
+  notify(client, "Wallet Tracker started!", "None", [], process.env.NFT_MINTING_ALERT_ID, "");
+  setTimeout(() => setMarketplaceAddresses(), 1000 * 60 * 60 * 48);
+
+  console.log(chalk.red(`\n[${new Date().toISOString()}] Service Start ... `));
+};
+
 scanMempool();
+
+///////////////////////////////////////////////////////
 
 const app = express();
 const httpServer = http.createServer(app);
