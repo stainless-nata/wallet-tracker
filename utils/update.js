@@ -3,6 +3,7 @@ import save from './save.js'
 import { inOurList } from './check.js'
 import { Alchemy, Network } from "alchemy-sdk";
 import dotenv  from "dotenv"
+import fs from 'fs'
 dotenv.config()
 
 
