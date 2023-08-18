@@ -5,8 +5,8 @@
   "main": "wallet-tracker.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "wallet": "node wallet-tracker.js"
+    "wallet": "node wallet-tracker.js",
+    "price": "node pricetracker.js"
   },
   "author": "",
   "license": "ISC",
